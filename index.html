@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>다중 채팅방 통합 접속 분석기</title>
+  <style>
+    :root {
+      --primary: #4f46e5;
+      --primary-hover: #4338ca;
+      --bg-color: #f8fafc;
+      --card-bg: #ffffff;
+      --border-color: #e2e8f0;
+      --text-color: #0f172a;
+
+      --color-login-normal-bg: #dcfce7;
+      --color-login-normal-text: #166534;
+      --color-login-strong-bg: #22c55e;
+      --color-login-strong-text: #ffffff;
+
+      --color-absent-normal-bg: #ffffff;
+      --color-absent-normal-text: #cbd5e1;
+      --color-absent-m-bg: #ef4444;
+      --color-absent-m-text: #ffffff;
+
+      --color-absence-k-bg: #64748b;
+      --color-absence-k-text: #ffffff;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Pretendard', system-ui, -apple-system, sans-serif; }
+    body { background-color: var(--bg-color); color: var(--text-color); padding: 24px; line-height: 1.5; }
+    .container { max-width: 1280px; margin: 0 auto; }
+    
+    h1 { font-size: 1.8rem; margin-bottom: 20px; font-weight: 700; }
+
+    .control-panel {
+      background: var(--card-bg);
+      padding: 16px;
+      border-radius: 8px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .btn-group { display: flex; gap: 8px; flex-wrap: wrap; }
+    .input-settings { display: flex; gap: 16px; align-items: center; font-size: 0.9rem; flex-wrap: wrap; }
+    .input-settings label { display: flex; align-items: center; gap: 6px; font-weight: 500; cursor: pointer; }
+    .input-settings input[type="number"] { width: 55px; padding: 4px 8px; border: 1px solid var(--border-color); border-radius: 4px; text-align: center; }
+
+    button, .btn-file, .btn-folder {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-size: 0.85rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .btn-add { background: #e0e7ff; color: var(--primary); }
+    .btn-add:hover { background: #c7d2fe; }
+    .btn-folder { background: #059669; color: white; }
+    .btn-folder:hover { background: #047857; }
+    .btn-analyze { background: var(--primary); color: white; }
+    .btn-analyze:hover { background: var(--primary-hover); }
+    .btn-delete { background: #f1f5f9; color: #64748b; padding: 4px 8px; font-size: 0.8rem; }
+    .btn-delete:hover { background: #e2e8f0; color: #dc2626; }
+    
+    .btn-file { background: #f1f5f9; color: #334155; padding: 4px 8px; font-size: 0.8rem; border: 1px solid var(--border-color); }
+    .btn-file:hover { background: #e2e8f0; color: var(--primary); }
+
+    .input-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    @media (max-width: 900px) { .input-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 600px) { .input-grid { grid-template-columns: 1fr; } }
+
+    .input-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .input-header { display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; font-weight: 600; color: #64748b; }
+    textarea {
+      width: 100%;
+      height: 160px;
+      padding: 8px;
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      resize: vertical;
+      font-size: 0.85rem;
+      line-height: 1.4;
+    }
+
+    .tabs-container { display: none; margin-bottom: 20px; }
+    .tabs-header { display: flex; gap: 8px; border-bottom: 2px solid var(--border-color); padding-bottom: 0; overflow-x: auto; }
+    .tab-btn {
+      background: none;
+      border: none;
+      padding: 10px 16px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #64748b;
+      border-bottom: 3px solid transparent;
+      border-radius: 0;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .tab-btn:hover { color: var(--primary); }
+    .tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); }
+
+    .tab-content { display: none; background: var(--card-bg); border-radius: 8px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    .tab-content.active { display: block; }
+
+    .table-wrapper {
+      max-height: 600px;
+      overflow: auto;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+    }
+    table { width: 100%; border-collapse: separate; border-spacing: 0; text-align: center; font-size: 0.85rem; }
+    th, td {
+      border-right: 1px solid var(--border-color);
+      border-bottom: 1px solid var(--border-color);
+      padding: 12px 16px;
+      min-width: 100px;
+      height: 48px;
+      text-align: center;
+      vertical-align: middle;
+    }
+    
+    #timelineTable thead th {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background-color: #f1f5f9;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    #timelineTable tbody td:first-child {
+      position: sticky;
+      left: 0;
+      z-index: 10;
+      background-color: #f8fafc;
+    }
+
+    #timelineTable thead th:first-child {
+      position: sticky;
+      top: 0;
+      left: 0;
+      z-index: 20;
+      background-color: #e2e8f0;
+    }
+
+    .th-absent-user { background: #f1f5f9; color: #475569; }
+    .badge-absent-header { display: inline-block; background: #64748b; color: #fff; font-size: 0.7rem; padding: 1px 5px; border-radius: 4px; margin-left: 4px; vertical-align: middle; }
+
+    .cell-login-normal { background-color: var(--color-login-normal-bg); color: var(--color-login-normal-text); font-weight: 600; }
+    .cell-login-strong { background-color: var(--color-login-strong-bg); color: var(--color-login-strong-text); font-weight: 700; }
+    .cell-absent-normal { color: var(--color-absent-normal-text); }
+    .cell-absent-m { background-color: var(--color-absent-m-bg); color: var(--color-absent-m-text); font-weight: 700; }
+    .cell-absence-k { background-color: var(--color-absence-k-bg); color: var(--color-absence-k-text); font-weight: 700; }
+
+    .info-list { list-style: none; display: flex; flex-direction: column; gap: 8px; font-size: 0.9rem; margin-top: 8px; }
+    .info-item { background: #f8fafc; padding: 10px 14px; border-radius: 6px; border: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+    
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; margin-left: 6px; }
+    .badge-success { background: var(--color-login-normal-bg); color: var(--color-login-normal-text); }
+    .badge-danger { background: #fee2e2; color: #991b1b; }
+    .badge-gray { background: #e2e8f0; color: #334155; }
+    .badge-warn { background: #fef3c7; color: #92400e; }
+
+    .legend { display: flex; gap: 14px; margin-bottom: 12px; font-size: 0.8rem; flex-wrap: wrap; }
+    .legend-item { display: flex; align-items: center; gap: 5px; }
+    .color-box { width: 14px; height: 14px; border-radius: 3px; display: inline-block; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h1>💬 다중 채팅방 통합 접속 분석기</h1>
+
+  <div class="control-panel">
+    <div class="btn-group">
+      <button class="btn-add" onclick="addInputField()">+ 입력란 추가</button>
+      
+      <!-- BAND 폴더 통째로 불러오기 버튼 -->
+      <label class="btn-folder">
+        📂 BAND 폴더 자동 불러오기
+        <input type="file" id="folderInput" webkitdirectory directory multiple style="display:none;" onchange="loadBandFolder(event)">
+      </label>
+
+      <button class="btn-analyze" onclick="analyzeAll()">전체 통합 분석</button>
+    </div>
+    <div class="input-settings">
+      <label>연속 접속 기준(n): <input type="number" id="consecLoginDays" value="7" min="1">일</label>
+      <label>연속 미접속 기준(m): <input type="number" id="consecAbsentDays" value="5" min="1">일</label>
+      <label>부재 판정 기준(k): <input type="number" id="absenceThresholdDays" value="14" min="1">일</label>
+      <label><input type="checkbox" id="excludeToday" checked> 오늘 날짜 제외</label>
+    </div>
+  </div>
+
+  <div class="input-grid" id="inputContainer"></div>
+
+  <div class="tabs-container" id="tabsContainer">
+    <div class="tabs-header">
+      <button class="tab-btn active" onclick="switchTab(1)">(1) 타임라인</button>
+      <button class="tab-btn" onclick="switchTab(2)">(2) 인원별 접속 날짜</button>
+      <button class="tab-btn" onclick="switchTab(3)">(3) 날짜별 접속 인원</button>
+      <button class="tab-btn" onclick="switchTab(4)">(4) 연속 접속 인원</button>
+      <button class="tab-btn" onclick="switchTab(5)">(5) 연속 미접속 / 부재 인원</button>
+    </div>
+
+    <!-- Tab 1 -->
+    <div class="tab-content active" id="tabContent_1">
+      <div class="legend">
+        <span class="legend-item"><span class="color-box" style="background: var(--color-login-normal-bg);"></span> 접속 (O)</span>
+        <span class="legend-item"><span class="color-box" style="background: var(--color-login-strong-bg);"></span> n일 이상 연속 접속</span>
+        <span class="legend-item"><span class="color-box" style="background: var(--color-absent-m-bg);"></span> m일 이상 연속 미접속</span>
+        <span class="legend-item"><span class="color-box" style="background: var(--color-absence-k-bg);"></span> k일 이상 연속 미접속 (부재)</span>
+      </div>
+      <div class="table-wrapper">
+        <table id="timelineTable">
+          <thead><tr id="timelineHeader"></tr></thead>
+          <tbody id="timelineBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Tab 2 -->
+    <div class="tab-content" id="tabContent_2">
+      <ul class="info-list" id="userDatesList"></ul>
+    </div>
+
+    <!-- Tab 3 -->
+    <div class="tab-content" id="tabContent_3">
+      <ul class="info-list" id="dateUsersList"></ul>
+    </div>
+
+    <!-- Tab 4 -->
+    <div class="tab-content" id="tabContent_4">
+      <ul class="info-list" id="consecLoginList"></ul>
+    </div>
+
+    <!-- Tab 5 -->
+    <div class="tab-content" id="tabContent_5">
+      <ul class="info-list" id="consecAbsentList"></ul>
+    </div>
+  </div>
+</div>
+
+<script>
+  let inputCount = 0;
+
+  const sampleData1 = `2026년 6월 20일 19:05:스바루:테스트 대화 시작합니다.
+2026년 6월 21일 19:06:스바루:연속 접속 테스트
+2026년 6월 24일 19:05:스바루:그럴리가 없죠. 제가 트리니티에게 동정을 받을 정도로 비참해보이시는건가요?
+2026년 6월 24일 19:06:코하루:(봄...)
+2026년 6월 24일 19:08:미카:응?
+2026년 6월 24일 19:09:미카:oO(와오~ 속이 단단히 꼬였나...?)
+2026년 6월 24일 19:09:미카:아니아니☆ 그런 의도는 전혀 없었는걸.
+그냥 걱정되서, 랄까?
+2026년 6월 24일 19:09:시나:(워프에서 튀어나오네.)
+
+응, 저녁이야.
+2026년 6월 24일 19:10:스바루:네에 뭐, 저는 괜찮다고 해두죠. 이런 꼴 뵈기 싫은 모습으로 힘들다곤 할 수 없으니 말이죠.
+2026년 6월 24일 19:10:스바루:(으쓱...)
+2026년 6월 24일 19:11:미카:어서와~☆
+2026년 6월 25일 16:47:유즈:더워......
+2026년 6월 25일 16:48:유즈:(잠바 벗으려 함)
+2026년 6월 25일 16:59:미카:우왓...???
+2026년 6월 25일 16:59:미카:뭐, 뭘 벗으려 하는거야??
+(가릿;;)
+2026년 6월 25일 17:13:코노카:(등돌림)`;
+
+  window.onload = () => {
+    addInputField(sampleData1, '샘플 채팅방');
+  };
+
+  function addInputField(defaultText = '', title = '') {
+    inputCount++;
+    const container = document.getElementById('inputContainer');
+    const card = document.createElement('div');
+    card.className = 'input-card';
+    card.id = `inputCard_${inputCount}`;
+
+    const roomTitle = title ? title : `채팅방 ${inputCount}`;
+
+    card.innerHTML = `
+      <div class="input-header">
+        <span id="title_${inputCount}">${roomTitle}</span>
+        <div style="display:flex; gap:6px; align-items:center;">
+          <label class="btn-file">
+            📁 파일 선택
+            <input type="file" accept=".txt,.log,text/*" onchange="loadFile(event, 'textarea_${inputCount}', 'title_${inputCount}')" style="display:none;">
+          </label>
+          ${inputCount > 1 ? `<button class="btn-delete" onclick="removeInputField('inputCard_${inputCount}')">삭제</button>` : ''}
+        </div>
+      </div>
+      <textarea placeholder="채팅 내역을 입력하거나 파일을 선택하세요..." id="textarea_${inputCount}">${defaultText}</textarea>
+    `;
+    container.appendChild(card);
+  }
+
+  function removeInputField(cardId) {
+    const card = document.getElementById(cardId);
+    if (card) card.remove();
+  }
+
+  function loadFile(event, textareaId, titleId) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    if (titleId) {
+      document.getElementById(titleId).innerText = file.name.replace('.txt', '');
+    }
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      document.getElementById(textareaId).value = e.target.result;
+    };
+    reader.readAsText(file, 'UTF-8');
+  }
+
+  // -----------------------------------------------------------------
+  // 📂 BAND 폴더 탐색 및 최신 내역 자동 선별 로직
+  // -----------------------------------------------------------------
+  async function loadBandFolder(event) {
+    const files = Array.from(event.target.files);
+    if (files.length === 0) return;
+
+    // BAND 채팅 .txt 파일만 필터링 (예: BandChat_방이름_YYYYMMDD_hhmmss / BAND_Chat_방이름.txt)
+    const bandTxtFiles = files.filter(f => f.name.endsWith('.txt'));
+
+    if (bandTxtFiles.length === 0) {
+      alert('선택한 폴더 내에서 텍스트(.txt) 파일을 찾을 수 없습니다.');
+      return;
+    }
+
+    // 채팅방별로 그룹화하여 가장 최신의 파일 1개만 추출
+    // 경로 예시: band/BandChat_방이름_20261007_160800/BAND_Chat_방이름.txt
+    const roomLatestFileMap = {};
+
+    bandTxtFiles.forEach(file => {
+      const path = file.webkitRelativePath || file.name;
+      
+      // 정규식으로 방이름과 타임스탬프(YYYYMMDD_hhmmss) 추출 시도
+      const match = path.match(/BandChat_(.+?)_(\d{8}_\d{6})/i) || path.match(/(.+?)_(\d{8}_\d{6})/);
+
+      let roomName = file.name.replace('.txt', '');
+      let timestamp = '00000000_000000';
+
+      if (match) {
+        roomName = match[1];
+        timestamp = match[2];
+      }
+
+      // 동일한 채팅방의 파일이 이미 있다면 타임스탬프 비교 후 최신 것만 보관
+      if (!roomLatestFileMap[roomName] || timestamp > roomLatestFileMap[roomName].timestamp) {
+        roomLatestFileMap[roomName] = {
+          file: file,
+          timestamp: timestamp,
+          roomName: roomName
+        };
+      }
+    });
+
+    // 기존 입력란 초기화 후 최신 파일들만 로드
+    document.getElementById('inputContainer').innerHTML = '';
+    inputCount = 0;
+
+    const roomEntries = Object.values(roomLatestFileMap);
+    
+    for (const item of roomEntries) {
+      const text = await readFileAsText(item.file);
+      addInputField(text, `${item.roomName} (${item.timestamp !== '00000000_000000' ? item.timestamp.split('_')[0] : '최신'})`);
+    }
+
+    alert(`총 ${roomEntries.length}개의 최신 채팅방 내역을 성공적으로 불러왔습니다!`);
+  }
+
+  function readFileAsText(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = e => resolve(e.target.result);
+      reader.onerror = err => reject(err);
+      reader.readAsText(file, 'UTF-8');
+    });
+  }
+
+  function switchTab(tabIndex) {
+    document.querySelectorAll('.tab-btn').forEach((btn, idx) => {
+      btn.classList.toggle('active', idx === tabIndex - 1);
+    });
+    document.querySelectorAll('.tab-content').forEach((content, idx) => {
+      content.classList.toggle('active', idx === tabIndex - 1);
+    });
+  }
+
+  function formatDate(d) {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  function getAllDatesInRange(minDateStr, maxDateStr) {
+    const dates = [];
+    let curr = new Date(minDateStr);
+    const end = new Date(maxDateStr);
+    while (curr <= end) {
+      dates.push(formatDate(curr));
+      curr.setDate(curr.getDate() + 1);
+    }
+    return dates;
+  }
+
+  function analyzeAll() {
+    const textareas = document.querySelectorAll('.input-grid textarea');
+    const nConsec = parseInt(document.getElementById('consecLoginDays').value) || 2;
+    const mConsec = parseInt(document.getElementById('consecAbsentDays').value) || 3;
+    const kAbsence = parseInt(document.getElementById('absenceThresholdDays').value) || 5;
+    const excludeToday = document.getElementById('excludeToday').checked;
+
+    const regex = /(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일\s*\d{1,2}:\d{2}:([^:\n\r]+):/g;
+    
+    const userDateMap = {};
+    const dateUserMap = {};
+    const allUsersSet = new Set();
+    const allParsedDatesSet = new Set();
+
+    textareas.forEach(ta => {
+      const text = ta.value;
+      let match;
+      while ((match = regex.exec(text)) !== null) {
+        const y = match[1];
+        const m = String(match[2]).padStart(2, '0');
+        const d = String(match[3]).padStart(2, '0');
+        const dateStr = `${y}-${m}-${d}`;
+        const name = match[4].trim();
+
+        if (!userDateMap[name]) userDateMap[name] = new Set();
+        userDateMap[name].add(dateStr);
+
+        if (!dateUserMap[dateStr]) dateUserMap[dateStr] = new Set();
+        dateUserMap[dateStr].add(name);
+
+        allUsersSet.add(name);
+        allParsedDatesSet.add(dateStr);
+      }
+    });
+
+    if (excludeToday) {
+      const todayStr = formatDate(new Date());
+      allParsedDatesSet.delete(todayStr);
+    }
+
+    if (allParsedDatesSet.size === 0) {
+      alert('유효한 채팅 내역을 찾을 수 없습니다.');
+      return;
+    }
+
+    const users = Array.from(allUsersSet).sort();
+    const sortedParsedDates = Array.from(allParsedDatesSet).sort();
+    
+    const minDate = sortedParsedDates[0];
+    const maxDate = sortedParsedDates[sortedParsedDates.length - 1];
+    
+    const datesAsc = getAllDatesInRange(minDate, maxDate);
+    const datesDesc = [...datesAsc].reverse();
+
+    const consecHighlights = {};
+    const currentlyAbsentUsers = new Set();
+    const consecLoginResults = [];
+    const consecAbsentResults = [];
+
+    users.forEach(user => {
+      consecHighlights[user] = {};
+      const userDates = userDateMap[user] || new Set();
+
+      let loginStreak = [];
+      datesAsc.forEach(d => {
+        if (userDates.has(d)) {
+          loginStreak.push(d);
+        } else {
+          if (loginStreak.length >= nConsec) {
+            consecLoginResults.push({
+              user, count: loginStreak.length,
+              start: loginStreak[0], end: loginStreak[loginStreak.length - 1]
+            });
+            loginStreak.forEach(sd => consecHighlights[user][sd] = 'login-strong');
+          }
+          loginStreak = [];
+        }
+      });
+      if (loginStreak.length >= nConsec) {
+        consecLoginResults.push({
+          user, count: loginStreak.length,
+          start: loginStreak[0], end: loginStreak[loginStreak.length - 1]
+        });
+        loginStreak.forEach(sd => consecHighlights[user][sd] = 'login-strong');
+      }
+
+      let nonLoginStreak = [];
+      datesAsc.forEach(d => {
+        if (!userDates.has(d)) {
+          nonLoginStreak.push(d);
+        } else {
+          processNonLogin(user, nonLoginStreak);
+          nonLoginStreak = [];
+        }
+      });
+      processNonLogin(user, nonLoginStreak);
+
+      function processNonLogin(u, streak) {
+        const len = streak.length;
+        if (len >= mConsec) {
+          const isAbsenceK = len >= kAbsence;
+          consecAbsentResults.push({
+            user: u,
+            count: len,
+            start: streak[0],
+            end: streak[streak.length - 1],
+            isK: isAbsenceK
+          });
+
+          streak.forEach(sd => {
+            consecHighlights[u][sd] = isAbsenceK ? 'absence-k' : 'absent-m';
+          });
+        }
+      }
+
+      if (!userDates.has(maxDate)) {
+        let currentStreak = 0;
+        for (let i = datesAsc.length - 1; i >= 0; i--) {
+          if (!userDates.has(datesAsc[i])) {
+            currentStreak++;
+          } else {
+            break;
+          }
+        }
+        if (currentStreak >= kAbsence) {
+          currentlyAbsentUsers.add(user);
+        }
+      }
+    });
+
+    consecLoginResults.sort((a, b) => b.end.localeCompare(a.end) || b.start.localeCompare(a.start));
+    consecAbsentResults.sort((a, b) => b.end.localeCompare(a.end) || b.start.localeCompare(a.start));
+
+    const normalUsers = users.filter(u => !currentlyAbsentUsers.has(u)).sort();
+    const absentUsers = users.filter(u => currentlyAbsentUsers.has(u)).sort();
+    const timelineUsers = [...normalUsers, ...absentUsers];
+
+    document.getElementById('tabsContainer').style.display = 'block';
+
+    // (1) 타임라인
+    const headerTr = document.getElementById('timelineHeader');
+    headerTr.innerHTML = `<th>날짜 (Y) \\ 인원 (X)</th>` + timelineUsers.map(u => {
+      const isAbsentNow = currentlyAbsentUsers.has(u);
+      return `<th class="${isAbsentNow ? 'th-absent-user' : ''}">
+                ${u}${isAbsentNow ? ' <span class="badge-absent-header">부재중</span>' : ''}
+              </th>`;
+    }).join('');
+
+    const bodyTbody = document.getElementById('timelineBody');
+    bodyTbody.innerHTML = '';
+
+    datesDesc.forEach(dateStr => {
+      const tr = document.createElement('tr');
+      let rowHtml = `<td><strong>${dateStr}</strong></td>`;
+
+      timelineUsers.forEach(user => {
+        const isLogged = userDateMap[user] && userDateMap[user].has(dateStr);
+        const highlight = consecHighlights[user]?.[dateStr];
+
+        let cellClass = 'cell-absent-normal';
+        let symbol = 'X';
+
+        if (isLogged) {
+          if (highlight === 'login-strong') {
+            cellClass = 'cell-login-strong';
+            symbol = 'O';
+          } else {
+            cellClass = 'cell-login-normal';
+            symbol = 'O';
+          }
+        } else {
+          if (highlight === 'absence-k') {
+            cellClass = 'cell-absence-k';
+            symbol = 'X';
+          } else if (highlight === 'absent-m') {
+            cellClass = 'cell-absent-m';
+            symbol = 'X';
+          }
+        }
+
+        rowHtml += `<td class="${cellClass}">${symbol}</td>`;
+      });
+
+      tr.innerHTML = rowHtml;
+      bodyTbody.appendChild(tr);
+    });
+
+    // (2) 인원별 접속 날짜
+    const userDatesList = document.getElementById('userDatesList');
+    userDatesList.innerHTML = '';
+    users.forEach(user => {
+      const dates = Array.from(userDateMap[user] || []).filter(d => !excludeToday || d !== formatDate(new Date())).sort().reverse();
+      const isAbsentNow = currentlyAbsentUsers.has(user);
+      userDatesList.innerHTML += `
+        <li class="info-item">
+          <div>
+            <strong>${user}</strong> ${isAbsentNow ? '<span class="badge badge-gray">현재 부재중</span>' : ''}
+            <span class="badge badge-warn">총 ${dates.length}일 접속</span>
+          </div>
+          <div style="font-size:0.85rem; color:#475569;">${dates.join(', ')}</div>
+        </li>`;
+    });
+
+    // (3) 날짜별 접속 인원
+    const dateUsersList = document.getElementById('dateUsersList');
+    dateUsersList.innerHTML = '';
+    datesDesc.forEach(dateStr => {
+      const activeUsers = Array.from(dateUserMap[dateStr] || []).sort();
+      dateUsersList.innerHTML += `
+        <li class="info-item">
+          <div><strong>${dateStr}</strong> <span class="badge badge-warn">참여 ${activeUsers.length}명</span></div>
+          <div>${activeUsers.length > 0 ? activeUsers.join(', ') : '<span style="color:#94a3b8;">접속자 없음</span>'}</div>
+        </li>`;
+    });
+
+    // (4) 연속 접속 인원
+    const consecLoginList = document.getElementById('consecLoginList');
+    consecLoginList.innerHTML = '';
+    if (consecLoginResults.length === 0) {
+      consecLoginList.innerHTML = `<li class="info-item">${nConsec}일 이상 연속 접속한 인원이 없습니다.</li>`;
+    } else {
+      consecLoginResults.forEach(r => {
+        consecLoginList.innerHTML += `
+          <li class="info-item">
+            <div>
+              <strong>${r.user}</strong>
+              <span class="badge badge-success">${nConsec}일 이상 연속 접속</span>
+            </div>
+            <div>${r.start} ~ ${r.end} (총 ${r.count}일간)</div>
+          </li>`;
+      });
+    }
+
+    // (5) 연속 미접속/부재 인원
+    const consecAbsentList = document.getElementById('consecAbsentList');
+    consecAbsentList.innerHTML = '';
+    if (consecAbsentResults.length === 0) {
+      consecAbsentList.innerHTML = `<li class="info-item">${mConsec}일 이상 연속 미접속 또는 부재 인원이 없습니다.</li>`;
+    } else {
+      consecAbsentResults.forEach(r => {
+        const badgeClass = r.isK ? 'badge-gray' : 'badge-danger';
+        const labelText = r.isK ? `부재 (${kAbsence}일 이상 미접속)` : `${mConsec}일 이상 연속 미접속`;
+        consecAbsentList.innerHTML += `
+          <li class="info-item">
+            <div>
+              <strong>${r.user}</strong>
+              <span class="badge ${badgeClass}">${labelText}</span>
+            </div>
+            <div>${r.start} ~ ${r.end} (총 ${r.count}일간)</div>
+          </li>`;
+      });
+    }
+  }
+</script>
+</body>
+</html>
