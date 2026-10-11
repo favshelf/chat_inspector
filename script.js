@@ -135,7 +135,7 @@ function getAllDatesInRange(minDateStr, maxDateStr) {
 }
 
 // -----------------------------------------------------------------
-// 💡 캐릭터 이름 정제 및 밴드 댓글 파싱 알고리즘
+// 💡 캐릭터 이름 정제 및 밴드 댓글 파싱 알고리즘 (개선됨)
 // -----------------------------------------------------------------
 
 function cleanAndExtractChar(str) {
@@ -184,81 +184,85 @@ function parseBandComments(rawText) {
   const comments = [];
 
   const timeRegex = /^(\d{1,2}월\s*\d{1,2}일|\d+(?:시간|분|일)\s*전|어제)/;
-  const prefixRegex = /^(리더|공동리더|멤버)(.+)$/;
-
+  
   let i = 0;
   while (i < lines.length) {
-    let prefix = "";
-    let name = "";
-
-    if (i + 1 < lines.length) {
-      const l1 = lines[i];
-      const l2 = lines[i + 1];
-
-      const pMatch = l1.match(prefixRegex);
-      if (pMatch && pMatch[2] === l2) {
-        prefix = pMatch[1];
-        name = l2;
-      } else if (l1 === l2) {
-        prefix = "";
-        name = l1;
-      }
-    }
-
-    if (!name) {
+    if (lines[i].includes("비밀 댓글입니다")) {
       i++;
       continue;
     }
 
-    i += 2;
-
-    const subName = (i < lines.length) ? lines[i] : "";
-    i++;
-
-    const contentLines = [];
-    let time = "";
-
-    while (i < lines.length) {
-      const currentLine = lines[i];
-      if (timeRegex.test(currentLine)) {
-        time = currentLine;
-        i++;
+    // 1. 시간(time)이 나오는 지점을 먼저 찾습니다. (댓글의 하단부 기준점)
+    let timeIdx = -1;
+    for (let j = i; j < lines.length; j++) {
+      if (timeRegex.test(lines[j])) {
+        timeIdx = j;
         break;
       }
-      contentLines.push(currentLine);
-      i++;
     }
 
-    const content = contentLines.join("\n");
+    // 시간을 찾지 못했다면 더 이상 유효한 댓글 없음
+    if (timeIdx === -1) break;
 
-    let hasCommentEdit = false;
-    while (i < lines.length) {
-      if (i + 1 < lines.length) {
-        const checkL1 = lines[i];
-        const checkL2 = lines[i + 1];
-        const checkPMatch = checkL1.match(prefixRegex);
-        if ((checkPMatch && checkPMatch[2] === checkL2) || (checkL1 === checkL2)) {
-          break;
-        }
-      }
+    const time = lines[timeIdx];
 
-      if (lines[i].includes("댓글 수정") || lines[i].includes("댓글수정")) {
-        hasCommentEdit = true;
-      }
-      i++;
+    // 2. 작성자(닉네임)는 보통 블록의 상단에 위치합니다. 
+    // i 위치가 닉네임이라고 가정하고, 작성자 / 본문 경계를 잡습니다.
+    let prefix = "";
+    let name = lines[i];
+    let contentStartIndex = i + 1;
+
+    // 만약 리더/공동리더/멤버 프리픽스가 붙어있는 경우 처리
+    const prefixRegex = /^(리더|공동리더|멤버)(.+)$/;
+    const pMatch = name.match(prefixRegex);
+    if (pMatch) {
+      prefix = pMatch[1];
+      name = pMatch[2].trim();
+    } else if (i + 1 < timeIdx && lines[i] === lines[i + 1]) {
+      // 밴드 UI 특성상 이름이 두 번 반복되어 출력되는 경우 대응
+      name = lines[i];
+      contentStartIndex = i + 2;
     }
 
+    // 3. 닉네임과 시간 사이의 텍스트를 모두 본문(content)으로 수집
+    const contentLines = [];
+    for (let j = contentStartIndex; j < timeIdx; j++) {
+      const l = lines[j];
+      // 하단 메타 키워드나 불필요한 UI 텍스트 제외
+      if (l === "표정짓기" || l === "답글쓰기" || l.includes("댓글 수정") || l.includes("댓글수정") || /^\d+$/.test(l)) {
+        continue;
+      }
+      contentLines.push(l);
+    }
+
+    const content = contentLines.join("\n").trim();
     const extractedCharacter = extractCharacterName(content);
 
-    comments.push({
-      prefix,
-      name,
-      subName,
-      content,
-      time,
-      hasCommentEdit,
-      character: extractedCharacter
-    });
+    if (name) {
+      comments.push({
+        prefix,
+        name,
+        subName: "", // 복잡한 subName 분리 대신 공백 처리로 안정성 확보
+        content,
+        time,
+        hasCommentEdit: contentLines.some(l => l.includes("댓글 수정")),
+        character: extractedCharacter
+      });
+    }
+
+    // 4. 다음 블록(시간 다음 줄부터)으로 인덱스 이동 및 메타 영역(OK, 숫자 등) 스킵
+    i = timeIdx + 1;
+    while (i < lines.length) {
+      const l = lines[i];
+      if (timeRegex.test(l) || l.match(prefixRegex) || l === "표정짓기" || l === "답글쓰기" || /^\d+$/.test(l) || l === "OK" || l.includes("댓글 수정")) {
+        // 만약 다음 댓글의 시작점인 시간이나 프리픽스가 나오면 탈출
+        if (timeRegex.test(l)) break;
+        i++;
+      } else {
+        // 다음 댓글의 닉네임 후보가 나타났다고 판단되면 중단
+        break;
+      }
+    }
   }
 
   return comments;
@@ -624,16 +628,14 @@ function analyzeAll() {
       const isLogged = userDateMap[user] && userDateMap[user].has(dateStr);
       const highlight = consecHighlights[user]?.[dateStr];
 
-      // 유저의 첫 접속일 구하기
       const uSorted = Array.from(userDateMap[user] || []).sort();
       const firstDate = uSorted[0];
 
       let cellClass = 'cell-absent-normal';
       let symbol = 'X';
 
-      // 첫 접속일 이전이면 X 대신 - 로 표시
       if (firstDate && dateStr < firstDate) {
-        cellClass = 'cell-before-join'; // 필요시 CSS 추가
+        cellClass = 'cell-before-join';
         symbol = '-';
       } else if (isLogged) {
         if (highlight === 'login-strong') {
