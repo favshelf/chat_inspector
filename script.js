@@ -192,7 +192,6 @@ function parseBandComments(rawText) {
       continue;
     }
 
-    // 1. 시간(time)이 나오는 지점을 먼저 찾습니다. (댓글의 하단부 기준점)
     let timeIdx = -1;
     for (let j = i; j < lines.length; j++) {
       if (timeRegex.test(lines[j])) {
@@ -201,34 +200,27 @@ function parseBandComments(rawText) {
       }
     }
 
-    // 시간을 찾지 못했다면 더 이상 유효한 댓글 없음
     if (timeIdx === -1) break;
 
     const time = lines[timeIdx];
 
-    // 2. 작성자(닉네임)는 보통 블록의 상단에 위치합니다. 
-    // i 위치가 닉네임이라고 가정하고, 작성자 / 본문 경계를 잡습니다.
     let prefix = "";
     let name = lines[i];
     let contentStartIndex = i + 1;
 
-    // 만약 리더/공동리더/멤버 프리픽스가 붙어있는 경우 처리
     const prefixRegex = /^(리더|공동리더|멤버)(.+)$/;
     const pMatch = name.match(prefixRegex);
     if (pMatch) {
       prefix = pMatch[1];
       name = pMatch[2].trim();
     } else if (i + 1 < timeIdx && lines[i] === lines[i + 1]) {
-      // 밴드 UI 특성상 이름이 두 번 반복되어 출력되는 경우 대응
       name = lines[i];
       contentStartIndex = i + 2;
     }
 
-    // 3. 닉네임과 시간 사이의 텍스트를 모두 본문(content)으로 수집
     const contentLines = [];
     for (let j = contentStartIndex; j < timeIdx; j++) {
       const l = lines[j];
-      // 하단 메타 키워드나 불필요한 UI 텍스트 제외
       if (l === "표정짓기" || l === "답글쓰기" || l.includes("댓글 수정") || l.includes("댓글수정") || /^\d+$/.test(l)) {
         continue;
       }
@@ -242,7 +234,7 @@ function parseBandComments(rawText) {
       comments.push({
         prefix,
         name,
-        subName: "", // 복잡한 subName 분리 대신 공백 처리로 안정성 확보
+        subName: "",
         content,
         time,
         hasCommentEdit: contentLines.some(l => l.includes("댓글 수정")),
@@ -250,16 +242,13 @@ function parseBandComments(rawText) {
       });
     }
 
-    // 4. 다음 블록(시간 다음 줄부터)으로 인덱스 이동 및 메타 영역(OK, 숫자 등) 스킵
     i = timeIdx + 1;
     while (i < lines.length) {
       const l = lines[i];
       if (timeRegex.test(l) || l.match(prefixRegex) || l === "표정짓기" || l === "답글쓰기" || /^\d+$/.test(l) || l === "OK" || l.includes("댓글 수정")) {
-        // 만약 다음 댓글의 시작점인 시간이나 프리픽스가 나오면 탈출
         if (timeRegex.test(l)) break;
         i++;
       } else {
-        // 다음 댓글의 닉네임 후보가 나타났다고 판단되면 중단
         break;
       }
     }
@@ -441,13 +430,11 @@ function runParser() {
 
   renderCharHistory(allComments);
 
-  // 파싱 완료 메시지 표시
   const statusEl = document.getElementById("parseStatus");
   if (statusEl) {
     statusEl.textContent = `✅ 총 ${mappingList.length}명의 캐릭터 매핑이 완료되었습니다!`;
   }
 
-  // 만약 이미 채팅 파일 분석 결과 탭이 열려있는 상태라면 바로 재분석 수행
   const tabsContainer = document.getElementById("tabsContainer");
   if (tabsContainer && tabsContainer.style.display !== "none") {
     analyzeAll();
@@ -477,7 +464,6 @@ function analyzeAll() {
     const text = ta.value;
     let match;
     while ((match = regex.exec(text)) !== null) {
-      userChatCounts[displayName] = (userChatCounts[displayName] || 0) + 1;
       const y = match[1];
       const m = String(match[2]).padStart(2, '0');
       const d = String(match[3]).padStart(2, '0');
@@ -488,6 +474,9 @@ function analyzeAll() {
 
       const matchedItem = mappingList.find(item => item.name === name);
       const displayName = (isNameMatched && matchedItem?.character) ? `${name} (${matchedItem.character})` : name;
+
+      // 인원별 채팅 수 카운트 (displayName이 정의된 이후에 실행)
+      userChatCounts[displayName] = (userChatCounts[displayName] || 0) + 1;
 
       if (!userDateMap[displayName]) userDateMap[displayName] = new Set();
       userDateMap[displayName].add(dateStr);
@@ -612,9 +601,9 @@ function analyzeAll() {
   // (1) 타임라인
   const headerTr = document.getElementById('timelineHeader');
   headerTr.innerHTML = `<th>날짜 (Y) \\ 인원 (X)</th>` + timelineUsers.map(u => {
-  const isAbsentNow = currentlyAbsentUsers.has(u);
-  const timelineUserLabel = u.replace(' (', '<br>(');
-  return `<th class="${isAbsentNow ? 'th-absent-user' : ''}">
+    const isAbsentNow = currentlyAbsentUsers.has(u);
+    const timelineUserLabel = u.replace(' (', '<br>(');
+    return `<th class="${isAbsentNow ? 'th-absent-user' : ''}">
       ${timelineUserLabel}${isAbsentNow ? '<br><span class="badge-absent-header">부재중</span>' : ''}
     </th>`;
   }).join('');
@@ -682,8 +671,8 @@ function analyzeAll() {
 
   // (3) 날짜별 접속 인원
   const dateUsersList = document.getElementById('dateUsersList');
-    dateUsersList.innerHTML = '';
-    datesDesc.forEach(dateStr => {
+  dateUsersList.innerHTML = '';
+  datesDesc.forEach(dateStr => {
     const activeUsers = Array.from(dateUserMap[dateStr] || []).sort();
     dateUsersList.innerHTML += `
       <li class="info-item" style="flex-direction: column; align-items: flex-start; gap: 8px;">
@@ -733,11 +722,13 @@ function analyzeAll() {
           <div>${r.start} ~ ${r.end} (총 ${r.count}일간)</div>
         </li>`;
     });
-
-    renderChatCountChart(users, userChatCounts);
   }
 
-// (6) 인원별 채팅 수 막대그래프 렌더링 (최대값 기준 상대 비율 적용)
+  // (6) 인원별 채팅 수 막대그래프 렌더링 호출
+  renderChatCountChart(users, userChatCounts);
+}
+
+// (6) 인원별 채팅 수 막대그래프 렌더링 함수 (최대값 기준 상대 비율 적용)
 function renderChatCountChart(users, userChatCounts) {
   const chartContainer = document.getElementById('chatCountChart');
   chartContainer.innerHTML = '';
@@ -751,7 +742,7 @@ function renderChatCountChart(users, userChatCounts) {
   users.forEach(user => {
     const count = userChatCounts[user] || 0;
     
-    // 최고 채팅 수 대비 정확한 비율 계산 (생략 없이 비례 적용)
+    // 최고 채팅 수 대비 정확한 비율 계산
     let ratio = maxCount === 0 ? 0 : (count / maxCount);
     let barHeight = Math.round(ratio * maxHeightPx);
     if (count > 0 && barHeight < 6) barHeight = 6; // 너무 작아 안 보이는 것 방지
@@ -769,5 +760,4 @@ function renderChatCountChart(users, userChatCounts) {
 
   chartHtml += `</div>`;
   chartContainer.innerHTML = chartHtml;
-}
 }
