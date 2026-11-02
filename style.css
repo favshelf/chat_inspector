@@ -196,3 +196,61 @@ th, td {
 .legend { display: flex; gap: 14px; margin-bottom: 12px; font-size: 0.8rem; flex-wrap: wrap; }
 .legend-item { display: flex; align-items: center; gap: 5px; }
 .color-box { width: 14px; height: 14px; border-radius: 3px; display: inline-block; }
+
+
+/* 📊 Tab 6 막대그래프 스타일 */
+.chart-container {
+  overflow-x: auto;
+  padding: 20px 0;
+}
+.bar-chart-wrapper {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  height: 340px;
+  padding: 20px 10px;
+  border-bottom: 2px solid var(--border-color);
+  min-width: max-content;
+}
+.bar-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 55px;
+  height: 100%;
+  justify-content: flex-end;
+}
+.bar-value {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #475569;
+  margin-bottom: 6px;
+  white-space: nowrap;
+}
+.bar-track {
+  width: 24px;
+  height: 260px;
+  background: #f1f5f9;
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  overflow: hidden;
+  position: relative;
+}
+.bar-fill {
+  width: 100%;
+  background: var(--primary);
+  border-radius: 4px 4px 0 0;
+  transition: height 0.3s ease;
+}
+.bar-label {
+  margin-top: 10px;
+  font-size: 0.78rem;
+  color: #334155;
+  text-align: center;
+  width: 70px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
