@@ -469,6 +469,7 @@ function analyzeAll() {
   
   const userDateMap = {};
   const dateUserMap = {};
+  const userChatCounts = {};
   const allUsersSet = new Set();
   const allParsedDatesSet = new Set();
 
@@ -476,6 +477,7 @@ function analyzeAll() {
     const text = ta.value;
     let match;
     while ((match = regex.exec(text)) !== null) {
+      userChatCounts[displayName] = (userChatCounts[displayName] || 0) + 1;
       const y = match[1];
       const m = String(match[2]).padStart(2, '0');
       const d = String(match[3]).padStart(2, '0');
@@ -731,5 +733,41 @@ function analyzeAll() {
           <div>${r.start} ~ ${r.end} (총 ${r.count}일간)</div>
         </li>`;
     });
+
+    renderChatCountChart(users, userChatCounts);
   }
+
+// (6) 인원별 채팅 수 막대그래프 렌더링 (최대값 기준 상대 비율 적용)
+function renderChatCountChart(users, userChatCounts) {
+  const chartContainer = document.getElementById('chatCountChart');
+  chartContainer.innerHTML = '';
+
+  const counts = users.map(u => userChatCounts[u] || 0);
+  const maxCount = Math.max(...counts, 1); // 전체 중 최고 채팅 수 (기준점: 100%)
+  const maxHeightPx = 260; // 최대 높이(px)
+
+  let chartHtml = `<div class="bar-chart-wrapper">`;
+
+  users.forEach(user => {
+    const count = userChatCounts[user] || 0;
+    
+    // 최고 채팅 수 대비 정확한 비율 계산 (생략 없이 비례 적용)
+    let ratio = maxCount === 0 ? 0 : (count / maxCount);
+    let barHeight = Math.round(ratio * maxHeightPx);
+    if (count > 0 && barHeight < 6) barHeight = 6; // 너무 작아 안 보이는 것 방지
+
+    chartHtml += `
+      <div class="bar-item">
+        <div class="bar-value">${count.toLocaleString()}개</div>
+        <div class="bar-track">
+          <div class="bar-fill" style="height: ${barHeight}px;"></div>
+        </div>
+        <div class="bar-label" title="${user}">${user}</div>
+      </div>
+    `;
+  });
+
+  chartHtml += `</div>`;
+  chartContainer.innerHTML = chartHtml;
+}
 }
